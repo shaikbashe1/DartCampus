@@ -1,9 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
-import 'package:flutter_highlighter/flutter_highlighter.dart';
-import 'package:flutter_highlighter/themes/atom-one-dark.dart';
-import 'package:flutter_highlighter/themes/atom-one-light.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
@@ -20,18 +17,50 @@ class PracticeScreen extends StatefulWidget {
 
 class _PracticeScreenState extends State<PracticeScreen> {
   final _dbService = DatabaseService();
-  String _codeSnippet = '''
+  
+  static const String _defaultCode = '''
+List<int> reverseList(List<int> input) {
+  List<int> reversed = [];
+  for (int i = input.length - 1; i >= 0; i--) {
+    reversed.add(input[i]);
+  }
+  return reversed;
+}
+
 void main() {
-  int a = 10;
-  int b = 20;
-  print(a + b);
+  var numbers = [1, 2, 3, 4, 5];
+  print(reverseList(numbers)); // Output: [5, 4, 3, 2, 1]
 }
 ''';
+
+  late TextEditingController _codeController;
 
   bool _isSubmitting = false;
   bool _showOutput = false;
   String _output = '';
   bool _isError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _codeController = TextEditingController(text: _defaultCode);
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  void _resetCode() {
+    setState(() {
+      _codeController.text = _defaultCode;
+      _showOutput = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Code reset to default template.')),
+    );
+  }
 
   void _runCode(BuildContext context) async {
     setState(() {
@@ -43,28 +72,48 @@ void main() {
     
     try {
       final response = await http.post(
-        // Assuming the backend is running locally on port 8080.
-        // In production, change this to the deployed Render/Heroku URL.
-        Uri.parse('http://localhost:8080/api/code/run'),
+        Uri.parse('https://emkc.org/api/v2/piston/execute'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'language': 'dart',
-          'code': _codeSnippet,
+          'version': '3.3.0',
+          'files': [
+            {
+              'name': 'main.dart',
+              'content': _codeController.text,
+            }
+          ]
         }),
       );
 
       final result = jsonDecode(response.body);
       
       if (mounted) {
+        if (response.statusCode != 200 || result['run'] == null) {
+          setState(() {
+            _isSubmitting = false;
+            _showOutput = true;
+            _isError = true;
+            _output = 'Execution API Error: \${result["message"] ?? "Unknown error"}';
+          });
+          return;
+        }
+
+        final runData = result['run'];
+        final isSuccess = runData['code'] == 0;
+        final stdout = runData['stdout'] ?? '';
+        final stderr = runData['stderr'] ?? '';
+        
         setState(() {
           _isSubmitting = false;
           _showOutput = true;
-          _isError = !result['success'];
-          _output = result['error'] != null ? result['error'] : result['output'];
+          _isError = !isSuccess;
+          _output = stderr.isNotEmpty ? stderr : stdout;
+          if (_output.isEmpty) _output = 'Program exited with no output.';
         });
         
-        if (result['success']) {
-          await _dbService.submitCode('challenge_123', _codeSnippet, 'dart', true);
+        if (isSuccess) {
+          await _dbService.submitCode('challenge_123', _codeController.text, 'dart', true);
           Provider.of<AppState>(context, listen: false).completeChallenge(50);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Accepted! +50 Points. Saved to database.'), backgroundColor: AppColors.success),
@@ -77,14 +126,14 @@ void main() {
           _isSubmitting = false;
           _showOutput = true;
           _isError = true;
-          _output = 'Failed to connect to execution server.\\nEnsure the backend is running on localhost:8080.\\nError: \$e';
+          _output = 'Network Error: Failed to connect to Piston execution server.\\n\$e';
         });
       }
     }
   }
 
   void _copyCode() {
-    Clipboard.setData(ClipboardData(text: _codeSnippet));
+    Clipboard.setData(ClipboardData(text: _codeController.text));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Code copied to clipboard!')),
     );
@@ -147,22 +196,39 @@ void main() {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text('main.dart', style: GoogleFonts.firaCode(fontSize: 14)),
-                          IconButton(
-                            icon: const Icon(Icons.copy, size: 20),
-                            onPressed: _copyCode,
-                            tooltip: 'Copy Code',
+                          Row(
+                            children: [
+                              TextButton.icon(
+                                icon: const Icon(Icons.refresh, size: 18),
+                                label: const Text('Reset Code'),
+                                onPressed: _resetCode,
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.copy, size: 20),
+                                onPressed: _copyCode,
+                                tooltip: 'Copy Code',
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    SizedBox(
-                      width: double.infinity,
-                      child: HighlightView(
-                        _codeSnippet,
-                        language: 'dart',
-                        theme: isDark ? atomOneDarkTheme : atomOneLightTheme,
-                        padding: const EdgeInsets.all(16),
-                        textStyle: GoogleFonts.firaCode(fontSize: 14),
+                    Container(
+                      color: isDark ? const Color(0xFF282C34) : const Color(0xFFFAFAFA),
+                      padding: const EdgeInsets.all(8),
+                      child: TextField(
+                        controller: _codeController,
+                        maxLines: null,
+                        minLines: 10,
+                        keyboardType: TextInputType.multiline,
+                        style: GoogleFonts.firaCode(
+                          fontSize: 14,
+                          color: isDark ? const Color(0xFFABB2BF) : const Color(0xFF383A42),
+                        ),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(8),
+                        ),
                       ),
                     ),
                   ],
