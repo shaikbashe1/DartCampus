@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter_highlighter/flutter_highlighter.dart';
 import 'package:flutter_highlighter/themes/atom-one-dark.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_highlighter/themes/atom-one-light.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
+import '../services/database_service.dart';
 import '../theme/app_colors.dart';
 import 'package:flutter/services.dart';
 
@@ -16,36 +19,67 @@ class PracticeScreen extends StatefulWidget {
 }
 
 class _PracticeScreenState extends State<PracticeScreen> {
-  final String _codeSnippet = '''
-List<int> reverseList(List<int> input) {
-  List<int> reversed = [];
-  for (int i = input.length - 1; i >= 0; i--) {
-    reversed.add(input[i]);
-  }
-  return reversed;
-}
-
+  final _dbService = DatabaseService();
+  String _codeSnippet = '''
 void main() {
-  var numbers = [1, 2, 3, 4, 5];
-  print(reverseList(numbers)); // Output: [5, 4, 3, 2, 1]
+  int a = 10;
+  int b = 20;
+  print(a + b);
 }
 ''';
 
   bool _isSubmitting = false;
   bool _showOutput = false;
+  String _output = '';
+  bool _isError = false;
 
   void _runCode(BuildContext context) async {
-    setState(() => _isSubmitting = true);
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted) {
-      setState(() {
-        _isSubmitting = false;
-        _showOutput = true;
-      });
-      Provider.of<AppState>(context, listen: false).completeChallenge(50);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('+50 Points awarded!')),
+    setState(() {
+      _isSubmitting = true;
+      _showOutput = false;
+      _output = '';
+      _isError = false;
+    });
+    
+    try {
+      final response = await http.post(
+        // Assuming the backend is running locally on port 8080.
+        // In production, change this to the deployed Render/Heroku URL.
+        Uri.parse('http://localhost:8080/api/code/run'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'language': 'dart',
+          'code': _codeSnippet,
+        }),
       );
+
+      final result = jsonDecode(response.body);
+      
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _showOutput = true;
+          _isError = !result['success'];
+          _output = result['error'] != null ? result['error'] : result['output'];
+        });
+        
+        if (result['success']) {
+          await _dbService.submitCode('challenge_123', _codeSnippet, 'dart', true);
+          Provider.of<AppState>(context, listen: false).completeChallenge(50);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Accepted! +50 Points. Saved to database.'), backgroundColor: AppColors.success),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _showOutput = true;
+          _isError = true;
+          _output = 'Failed to connect to execution server.\\nEnsure the backend is running on localhost:8080.\\nError: \$e';
+        });
+      }
     }
   }
 
@@ -147,10 +181,12 @@ void main() {
                     border: Border.all(color: Theme.of(context).dividerColor),
                   ),
                   child: Text(
-                    '[5, 4, 3, 2, 1]\n\nProgram finished successfully.',
+                    _output,
                     style: GoogleFonts.firaCode(
                       fontSize: 14,
-                      color: isDark ? Colors.greenAccent : Colors.green[700],
+                      color: _isError
+                          ? AppColors.error
+                          : (isDark ? Colors.greenAccent : Colors.green[700]),
                     ),
                   ),
                 ),
