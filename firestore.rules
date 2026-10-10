@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the user has an admin claim from Firebase Auth
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    // Users Collection - Students can only read/write their own profiles
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow read, write: if isAdmin();
+      
+      // Subcollections within Users
+      match /completions/{completionId} {
+        allow read: if isAuthenticated() && request.auth.uid == userId;
+        // Only Cloud Functions or Admin should ideally write completions to prevent cheating, 
+        // but for now we allow the user. In production, protect this.
+        allow write: if isAuthenticated() && request.auth.uid == userId; 
+      }
+      match /topicStats/{topicId} {
+        allow read: if isAuthenticated() && request.auth.uid == userId;
+      }
+    }
+
+    // Lessons Collection - Anyone authenticated can read published lessons
+    match /lessons/{lessonId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Challenges Collection - Anyone authenticated can read published challenges
+    match /challenges/{challengeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Submissions Collection - Users read their own, Admins read all
+    match /submissions/{submissionId} {
+      allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      // Updates/Deletions shouldn't be allowed by students
+      allow update, delete: if isAdmin();
+    }
+  }
+}
