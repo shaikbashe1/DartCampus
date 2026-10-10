@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../screens/home_screen.dart';
+import '../screens/learn_screen.dart';
 import '../screens/practice_screen.dart';
+import '../screens/profile_screen.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -14,9 +16,9 @@ class _MainLayoutState extends State<MainLayout> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const Center(child: Text('Learn (Coming Soon)')),
+    const LearnScreen(),
     const PracticeScreen(),
-    const Center(child: Text('Profile (Coming Soon)')),
+    const ProfileScreen(),
   ];
 
   @override

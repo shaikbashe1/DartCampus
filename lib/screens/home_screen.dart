@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/app_state.dart';
 import '../data/mock_data.dart';
 import '../theme/app_colors.dart';
 import '../widgets/activity_chart.dart';
@@ -8,6 +10,8 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appState = Provider.of<AppState>(context);
+    
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -15,11 +19,11 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(context),
+              _buildHeader(context, appState),
               const SizedBox(height: 32),
               _buildDailyChallenge(context),
               const SizedBox(height: 24),
-              _buildStatsRow(context),
+              _buildStatsRow(context, appState),
               const SizedBox(height: 32),
               Text(
                 'Continue Learning',
@@ -46,7 +50,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, AppState appState) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -147,7 +151,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsRow(BuildContext context) {
+  Widget _buildStatsRow(BuildContext context, AppState appState) {
     return Row(
       children: [
         Expanded(
@@ -159,7 +163,7 @@ class HomeScreen extends StatelessWidget {
                   const Icon(Icons.local_fire_department, color: Colors.orange, size: 32),
                   const SizedBox(height: 8),
                   Text(
-                    '${MockData.streakDays} Days',
+                    '${appState.streakDays} Days',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   Text('Current Streak', style: Theme.of(context).textTheme.bodySmall),
@@ -176,13 +180,13 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 children: [
                   CircularProgressIndicator(
-                    value: MockData.progressPercent,
+                    value: appState.progressPercent,
                     backgroundColor: Theme.of(context).dividerColor,
                     color: AppColors.violet,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${MockData.completedLessons}/${MockData.totalLessons}',
+                    '${appState.completedLessons}/${appState.totalLessons}',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   Text('Lessons', style: Theme.of(context).textTheme.bodySmall),

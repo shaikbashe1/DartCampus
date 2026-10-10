@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'providers/app_state.dart';
 import 'screens/main_layout.dart';
 import 'theme/app_theme.dart';
 
 void main() {
-  runApp(const DartCodeCampusApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => AppState(),
+      child: const DartCodeCampusApp(),
+    ),
+  );
 }
 
 class DartCodeCampusApp extends StatelessWidget {

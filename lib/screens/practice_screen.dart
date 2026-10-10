@@ -3,6 +3,8 @@ import 'package:flutter_highlighter/flutter_highlighter.dart';
 import 'package:flutter_highlighter/themes/atom-one-dark.dart';
 import 'package:flutter_highlighter/themes/atom-one-light.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../providers/app_state.dart';
 import '../theme/app_colors.dart';
 import 'package:flutter/services.dart';
 
@@ -32,15 +34,18 @@ void main() {
   bool _isSubmitting = false;
   bool _showOutput = false;
 
-  void _runCode() async {
+  void _runCode(BuildContext context) async {
     setState(() => _isSubmitting = true);
-    // Simulate network/compilation delay
     await Future.delayed(const Duration(seconds: 1));
     if (mounted) {
       setState(() {
         _isSubmitting = false;
         _showOutput = true;
       });
+      Provider.of<AppState>(context, listen: false).completeChallenge(50);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('+50 Points awarded!')),
+      );
     }
   }
 
@@ -154,7 +159,7 @@ void main() {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _runCode,
+                  onPressed: _isSubmitting ? null : () => _runCode(context),
                   child: _isSubmitting
                       ? const SizedBox(
                           height: 20,
